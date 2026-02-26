@@ -102,8 +102,8 @@ export default function Calculator() {
         month: d.month,
         clicks: d.clicks,
         value: activeModule === "gsc" ? (d as any).trafficValue : (d as any).revenue,
-        min: activeModule === "gsc" ? (activeMC.p10[i]?.trafficValue || 0) : (activeMC.p10[i]?.revenue || 0),
-        max: activeModule === "gsc" ? (activeMC.p90[i]?.trafficValue || 0) : (activeMC.p90[i]?.revenue || 0),
+        min: activeModule === "gsc" ? (results.gscMC.p10[i]?.trafficValue || 0) : (results.ecomMC.p10[i]?.revenue || 0),
+        max: activeModule === "gsc" ? (results.gscMC.p90[i]?.trafficValue || 0) : (results.ecomMC.p90[i]?.revenue || 0),
     }));
 
     return (
@@ -257,9 +257,9 @@ export default function Calculator() {
                             <h4 className="font-black text-xs uppercase tracking-[0.2em] mb-8 flex items-center gap-2 opacity-50"><BarChart3 className="w-3 h-3 text-blue-400" /> Economics Intelligence</h4>
                             {activeModule === "ecom" ? (
                                 <div className="space-y-6">
-                                    <FunnelRow label="Traffic Acquisition" val={formatNumber(activeData.totals.yearlyOrders / 12 / activeData.totals.blendedCvr)} color="blue" />
-                                    <FunnelRow label="Funnel Efficiency" val={formatNumber((activeData.totals.yearlyOrders / 12) * 2.1)} color="indigo" />
-                                    <FunnelRow label="Conversion Yield" val={formatNumber(activeData.totals.yearlyOrders / 12)} color="emerald" />
+                                    <FunnelRow label="Traffic Acquisition" val={formatNumber(results.ecom.totals.yearlyOrders / 12 / results.ecom.totals.blendedCvr)} color="blue" />
+                                    <FunnelRow label="Funnel Efficiency" val={formatNumber((results.ecom.totals.yearlyOrders / 12) * 2.1)} color="indigo" />
+                                    <FunnelRow label="Conversion Yield" val={formatNumber(results.ecom.totals.yearlyOrders / 12)} color="emerald" />
                                 </div>
                             ) : (
                                 <div className="space-y-4">
