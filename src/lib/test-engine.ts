@@ -1,4 +1,4 @@
-import { simulateGSCMetrics, CalculatorInputs } from './engine';
+import { simulateEcommerceRevenue, CalculatorInputs } from './engine';
 
 const testInputs: CalculatorInputs = {
     totalPages: 2000,
@@ -12,7 +12,7 @@ const testInputs: CalculatorInputs = {
     applyMobilePenalty: true,
 };
 
-const result = simulateGSCMetrics(testInputs);
+const result = simulateEcommerceRevenue(testInputs);
 
 console.log("--- TEST RESULTS ---");
 console.log("Yearly Revenue:", result.totals.yearlyRevenue);
