@@ -194,20 +194,51 @@ export default function Calculator() {
 
                 <div className="lg:col-span-8 space-y-8">
                     {/* Metrics Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
                         {activeModule === "gsc" ? (
                             <>
-                                <MetricCard title="Est. Ad Value" value={formatCurrency(results.gsc.totals.yearlyTrafficValue)} icon={<DollarSign className="w-5 h-5" />} color="emerald" />
-                                <MetricCard title="Yearly Clicks" value={formatNumber(results.gsc.totals.yearlyClicks)} icon={<MousePointerClick className="w-5 h-5" />} color="blue" />
-                                <MetricCard title="Avg Search Pos" value={results.gsc.totals.avgPosition.toFixed(1)} icon={<Target className="w-5 h-5" />} color="amber" />
-                                <MetricCard title="Weighted CTR" value={(results.gsc.totals.averageCtr * 100).toFixed(2) + "%"} icon={<Activity className="w-5 h-5" />} color="indigo" />
+                                <div className="md:col-span-2">
+                                    <MetricCard title="Est. Ad Value" value={formatCurrency(results.gsc.totals.yearlyTrafficValue)} icon={<DollarSign className="w-5 h-5" />} color="emerald" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <MetricCard
+                                        title="Organic Clicks"
+                                        value={formatNumber(results.gsc.totals.yearlyClicks)}
+                                        subtitle={`${formatNumber(results.gsc.totals.monthlyClicks)}/mo • ${formatNumber(results.gsc.totals.dailyClicks)}/day`}
+                                        icon={<MousePointerClick className="w-5 h-5" />}
+                                        color="blue"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <MetricCard
+                                        title="Impressions"
+                                        value={formatNumber(results.gsc.totals.yearlyImpressions)}
+                                        subtitle={`${formatNumber(results.gsc.totals.monthlyImpressions)}/mo • ${formatNumber(results.gsc.totals.dailyImpressions)}/day`}
+                                        icon={<BarChart3 className="w-5 h-5" />}
+                                        color="indigo"
+                                    />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <MetricCard title="Avg Search Position" value={results.gsc.totals.avgPosition.toFixed(1)} icon={<Target className="w-5 h-5" />} color="amber" />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <MetricCard title="Weighted CTR" value={(results.gsc.totals.averageCtr * 100).toFixed(2) + "%"} icon={<Activity className="w-5 h-5" />} color="purple" />
+                                </div>
                             </>
                         ) : (
                             <>
-                                <MetricCard title="Total Revenue" value={formatCurrency(results.ecom.totals.yearlyRevenue)} icon={<DollarSign className="w-5 h-5" />} color="indigo" />
-                                <MetricCard title="Yearly Profit" value={formatCurrency(results.ecom.totals.yearlyProfit)} icon={<Zap className="w-5 h-5" />} color="amber" />
-                                <MetricCard title="Orders Placed" value={formatNumber(results.ecom.totals.yearlyOrders)} icon={<ShoppingBag className="w-5 h-5" />} color="emerald" />
-                                <MetricCard title="Blended CVR" value={(results.ecom.totals.blendedCvr * 100).toFixed(2) + "%"} icon={<Target className="w-5 h-5" />} color="purple" />
+                                <div className="md:col-span-3">
+                                    <MetricCard title="Total Revenue" value={formatCurrency(results.ecom.totals.yearlyRevenue)} icon={<DollarSign className="w-5 h-5" />} color="indigo" />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <MetricCard title="Yearly Profit" value={formatCurrency(results.ecom.totals.yearlyProfit)} icon={<Zap className="w-5 h-5" />} color="amber" />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <MetricCard title="Orders Placed" value={formatNumber(results.ecom.totals.yearlyOrders)} icon={<ShoppingBag className="w-5 h-5" />} color="emerald" />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <MetricCard title="Blended CVR" value={(results.ecom.totals.blendedCvr * 100).toFixed(2) + "%"} icon={<Target className="w-5 h-5" />} color="purple" />
+                                </div>
                             </>
                         )}
                     </div>
@@ -417,7 +448,7 @@ function ToggleItem({ label, name, value, onChange, icon }: any) {
     );
 }
 
-function MetricCard({ title, value, icon, color }: any) {
+function MetricCard({ title, value, subtitle, icon, color, small }: any) {
     const colorMap: any = {
         blue: "text-blue-400 border-blue-500/20 bg-blue-500/[0.02]",
         emerald: "text-emerald-400 border-emerald-500/20 bg-emerald-500/[0.02]",
@@ -434,17 +465,20 @@ function MetricCard({ title, value, icon, color }: any) {
     };
 
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("glass p-8 rounded-[2rem] border relative overflow-hidden group", colorMap[color], glowMap[color])}>
-            <div className="flex justify-between items-start mb-6">
-                <div className="p-3 bg-white/5 rounded-2xl border border-white/5 group-hover:bg-white/10 transition-all group-hover:scale-110 group-hover:rotate-3">{icon}</div>
-                <div className="flex gap-1">
-                    <div className="w-1 h-1 rounded-full bg-white/20" />
-                    <div className="w-1 h-1 rounded-full bg-white/40" />
-                </div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn("glass rounded-[2rem] border relative overflow-hidden group transition-all", small ? "p-4" : "p-8", colorMap[color], glowMap[color])}>
+            <div className={cn("flex justify-between items-start", small ? "mb-3" : "mb-6")}>
+                <div className={cn("bg-white/5 rounded-2xl border border-white/5 group-hover:bg-white/10 transition-all group-hover:scale-110", small ? "p-2" : "p-3")}>{icon}</div>
+                {!small && (
+                    <div className="flex gap-1">
+                        <div className="w-1 h-1 rounded-full bg-white/20" />
+                        <div className="w-1 h-1 rounded-full bg-white/40" />
+                    </div>
+                )}
             </div>
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.25em] mb-2 group-hover:text-zinc-400 transition-colors">{title}</p>
-            <h3 className="text-2xl font-black tracking-tighter text-white group-hover:scale-[1.02] transition-transform origin-left">{value}</h3>
-            <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-current opacity-[0.03] blur-2xl rounded-full" />
+            <p className={cn("font-black text-zinc-500 uppercase tracking-[0.25em] group-hover:text-zinc-400 transition-colors", small ? "text-[8px] mb-1" : "text-[10px] mb-2")}>{title}</p>
+            <h3 className={cn("font-black tracking-tighter text-white group-hover:scale-[1.02] transition-transform origin-left", small ? "text-lg" : "text-2xl")}>{value}</h3>
+            {subtitle && <p className="text-[9px] font-bold text-zinc-500 mt-2 lowercase tracking-tighter">{subtitle}</p>}
+            {!small && <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-current opacity-[0.03] blur-2xl rounded-full" />}
         </motion.div>
     );
 }

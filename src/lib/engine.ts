@@ -166,7 +166,11 @@ export function simulateGSCAdValue(inputs: CalculatorInputs) {
       monthlyData: [],
       totals: {
         yearlyClicks: 0,
+        monthlyClicks: 0,
+        dailyClicks: 0,
         yearlyImpressions: 0,
+        monthlyImpressions: 0,
+        dailyImpressions: 0,
         yearlyTrafficValue: 0,
         averageCtr: 0,
         avgPosition: 0
@@ -175,13 +179,20 @@ export function simulateGSCAdValue(inputs: CalculatorInputs) {
   }
 
   const last12 = data.slice(-12);
+  const yearlyClicks = last12.reduce((s, d) => s + d.clicks, 0);
+  const yearlyImpressions = last12.reduce((s, d) => s + d.impressions, 0);
+
   return {
     monthlyData: data,
     totals: {
-      yearlyClicks: last12.reduce((s, d) => s + d.clicks, 0),
-      yearlyImpressions: last12.reduce((s, d) => s + d.impressions, 0),
+      yearlyClicks,
+      monthlyClicks: yearlyClicks / 12,
+      dailyClicks: yearlyClicks / 365,
+      yearlyImpressions,
+      monthlyImpressions: yearlyImpressions / 12,
+      dailyImpressions: yearlyImpressions / 365,
       yearlyTrafficValue: last12.reduce((s, d) => s + d.trafficValue, 0),
-      averageCtr: last12.reduce((s, d) => s + d.clicks, 0) / (last12.reduce((s, d) => s + d.impressions, 0) || 1),
+      averageCtr: yearlyClicks / (yearlyImpressions || 1),
       avgPosition: data[data.length - 1].avgPosition
     }
   };
