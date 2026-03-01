@@ -71,7 +71,7 @@ export default function DocumentationPage() {
                             <code className="text-[10px] font-mono leading-relaxed text-blue-300 block bg-zinc-950 p-4 rounded-xl border border-white/5">
                                 growthFactor = (1 - exp(-(0.12 + DA * 0.006) * m)) <br /><br />
                                 impressions = indexedPages * baseImpsPerPage * growthFactor <br /><br />
-                                value = (clicks * avgCpc) + ((clicks / 1000) * avgCpm)
+                                value = ((clicks / 300) * avgCpc) + ((clicks / 1000) * avgCpm)
                             </code>
                         </div>
                     </div>

@@ -15,6 +15,7 @@ export interface CalculatorInputs {
   avgCpc: number;
   avgCpm: number;
   monthsSinceLaunch: number;
+  inventoryGrowthRate?: number; // Monthly percentage growth of totalPages
 
   // Joint Impact Parameters
   brandStrength?: StoreTrust; // Impacts CTR (Traffic) and CVR (Ecommerce)
@@ -44,6 +45,7 @@ export interface TrafficData {
   clicks: number;
   ctr: number;
   avgPosition: number;
+  totalPages: number;
 }
 
 export interface GSCAdValueData extends TrafficData {
@@ -79,6 +81,7 @@ export function simulateTraffic(inputs: CalculatorInputs): TrafficData[] {
   const {
     totalPages, domainAuthority, competition, monthsSinceLaunch,
     brandStrength = "average", pageSpeedScore = 70, contentDepth = "average",
+    inventoryGrowthRate = 0,
     applyCannibalizationPenalty, applySeasonality, applyCoreUpdateVolatility,
     applyContentDecay, applySerpSuppression, applyReindexationRisk
   } = inputs;
@@ -115,15 +118,17 @@ export function simulateTraffic(inputs: CalculatorInputs): TrafficData[] {
     if (domainAuthority > 60) indexRate = Math.min(0.98, indexRate + 0.03);
     if (applyReindexationRisk && m > 3) indexRate *= 0.985;
 
-    let indexedPages = Math.floor(totalPages * indexRate);
+    // Calculate growing inventory
+    const currentTotalPages = totalPages * Math.pow(1 + (inventoryGrowthRate / 100), m - 1);
+    let indexedPages = Math.floor(currentTotalPages * indexRate);
     let currentImpsPerPage = baseImpressionsPerPage;
     if (applyContentDecay && m > 12) currentImpsPerPage *= Math.pow(0.975, m - 12);
     if (applySeasonality) currentImpsPerPage *= (1 + Math.sin((m / 12) * Math.PI * 2) * 0.15);
     if (applyCoreUpdateVolatility && m % 6 === 0) currentImpsPerPage *= (0.7 + (Math.sin(m) * 0.3));
 
     let monthlyImps = Math.floor(indexedPages * currentImpsPerPage);
-    if (applyCannibalizationPenalty && totalPages > 500) {
-      const scale = Math.log10(totalPages / 500);
+    if (applyCannibalizationPenalty && currentTotalPages > 500) {
+      const scale = Math.log10(currentTotalPages / 500);
       monthlyImps = Math.floor(monthlyImps * Math.max(0.7, 1 - (0.05 * scale)));
     }
 
@@ -148,7 +153,8 @@ export function simulateTraffic(inputs: CalculatorInputs): TrafficData[] {
 
     monthlyResults.push({
       month: m, indexedPages, impressions: monthlyImps, clicks: Math.floor(clicks),
-      ctr: monthlyImps > 0 ? clicks / monthlyImps : 0, avgPosition: rankImpSum > 0 ? rankPosSum / rankImpSum : 0
+      ctr: monthlyImps > 0 ? clicks / monthlyImps : 0, avgPosition: rankImpSum > 0 ? rankPosSum / rankImpSum : 0,
+      totalPages: Math.floor(currentTotalPages)
     });
   }
   return monthlyResults;
@@ -160,7 +166,7 @@ export function simulateTraffic(inputs: CalculatorInputs): TrafficData[] {
 export function simulateGSCAdValue(inputs: CalculatorInputs) {
   const traffic = simulateTraffic(inputs);
   const data: GSCAdValueData[] = traffic.map(t => ({
-    ...t, trafficValue: (t.clicks * inputs.avgCpc) + ((t.clicks / 1000) * inputs.avgCpm)
+    ...t, trafficValue: ((t.clicks / 300) * inputs.avgCpc) + ((t.clicks / 1000) * inputs.avgCpm)
   }));
   if (data.length === 0) {
     return {
@@ -173,6 +179,8 @@ export function simulateGSCAdValue(inputs: CalculatorInputs) {
         monthlyImpressions: 0,
         dailyImpressions: 0,
         yearlyTrafficValue: 0,
+        monthlyTrafficValue: 0,
+        dailyTrafficValue: 0,
         averageCtr: 0,
         avgPosition: 0
       }
@@ -192,7 +200,9 @@ export function simulateGSCAdValue(inputs: CalculatorInputs) {
       yearlyImpressions,
       monthlyImpressions: yearlyImpressions / 12,
       dailyImpressions: yearlyImpressions / 365,
-      yearlyTrafficValue: last12.reduce((s, d) => s + d.trafficValue, 0),
+      yearlyTrafficValue: (last12.reduce((s, d) => s + d.trafficValue, 0)),
+      monthlyTrafficValue: (last12.reduce((s, d) => s + d.trafficValue, 0)) / 12,
+      dailyTrafficValue: (last12.reduce((s, d) => s + d.trafficValue, 0)) / 365,
       averageCtr: yearlyClicks / (yearlyImpressions || 1),
       avgPosition: data[data.length - 1].avgPosition
     }
@@ -237,7 +247,11 @@ export function simulateEcommerceRevenue(inputs: CalculatorInputs) {
       totals: {
         yearlyOrders: 0,
         yearlyRevenue: 0,
+        monthlyRevenue: 0,
+        dailyRevenue: 0,
         yearlyProfit: 0,
+        monthlyProfit: 0,
+        dailyProfit: 0,
         blendedCvr: 0,
       },
       funnel: { atc: 0.08, checkout: 0.60, purchase: 0.55 }
@@ -250,7 +264,11 @@ export function simulateEcommerceRevenue(inputs: CalculatorInputs) {
     totals: {
       yearlyOrders: last12.reduce((s, d) => s + d.orders, 0),
       yearlyRevenue: last12.reduce((s, d) => s + d.revenue, 0),
+      monthlyRevenue: last12.reduce((s, d) => s + d.revenue, 0) / 12,
+      dailyRevenue: last12.reduce((s, d) => s + d.revenue, 0) / 365,
       yearlyProfit: last12.reduce((s, d) => s + d.profit, 0),
+      monthlyProfit: last12.reduce((s, d) => s + d.profit, 0) / 12,
+      dailyProfit: last12.reduce((s, d) => s + d.profit, 0) / 365,
       blendedCvr: last12.reduce((s, d) => s + d.orders, 0) / (last12.reduce((s, d) => s + d.clicks, 0) || 1),
     },
     funnel: {

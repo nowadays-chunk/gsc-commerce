@@ -8,7 +8,9 @@ import {
     simulateMonteCarlo,
     CalculatorInputs,
     StoreTrust,
-    ContentDepth
+    ContentDepth,
+    GSCAdValueData,
+    EcommerceData
 } from "@/lib/engine";
 import { formatNumber, formatCurrency, cn } from "@/lib/utils";
 import {
@@ -44,8 +46,30 @@ import {
     Info,
     ChevronRight,
     HelpCircle,
-    BookOpen
+    BookOpen,
+    Save,
+    Trash2,
+    Download,
+    Upload,
+    ChevronDown,
+    ChevronUp,
+    Copy,
+    ArrowUpRight,
+    ArrowDownRight,
+    Minus,
+    Plus
 } from "lucide-react";
+
+interface Estimation {
+    id: string;
+    name: string;
+    timestamp: number;
+    type: "gsc" | "ecom";
+    inputs: CalculatorInputs;
+    yearlyValue: number;
+    totals: any;
+    monthlyData: any[];
+}
 
 export default function Calculator() {
     const [activeModule, setActiveModule] = useState<"gsc" | "ecom">("gsc");
@@ -71,9 +95,30 @@ export default function Calculator() {
         applySerpSuppression: true,
         applyReindexationRisk: false,
         applyMobilePenalty: true,
+        inventoryGrowthRate: 0,
     });
 
-    useEffect(() => { setMounted(true); }, []);
+    const [estimations, setEstimations] = useState<Estimation[]>([]);
+    const [editingEstimationId, setEditingEstimationId] = useState<string | null>(null);
+    const [expandedEstimationId, setExpandedEstimationId] = useState<string | null>(null);
+
+    useEffect(() => {
+        setMounted(true);
+        const saved = localStorage.getItem("quant_estimations");
+        if (saved) {
+            try {
+                setEstimations(JSON.parse(saved));
+            } catch (e) {
+                console.error("Failed to load estimations", e);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (mounted) {
+            localStorage.setItem("quant_estimations", JSON.stringify(estimations));
+        }
+    }, [estimations, mounted]);
 
     const results = useMemo(() => {
         if (!mounted) return null;
@@ -94,18 +139,112 @@ export default function Calculator() {
         }));
     };
 
+    const saveEstimation = () => {
+        if (!results) return;
+
+        const activeTotals = activeModule === "gsc" ? results.gsc.totals : results.ecom.totals;
+        const yearlyValue = activeModule === "gsc" ? results.gsc.totals.yearlyTrafficValue : results.ecom.totals.yearlyRevenue;
+
+        if (editingEstimationId) {
+            setEstimations(prev => prev.map(est => {
+                if (est.id === editingEstimationId) {
+                    return {
+                        ...est,
+                        timestamp: Date.now(),
+                        type: activeModule,
+                        inputs: { ...inputs },
+                        yearlyValue,
+                        totals: activeTotals,
+                        monthlyData: activeModule === "gsc" ? results.gsc.monthlyData : results.ecom.monthlyData
+                    };
+                }
+                return est;
+            }));
+        } else {
+            const id = Math.random().toString(36).substring(2, 9);
+            const name = `Estimation ${estimations.length + 1}`;
+
+            const newEstimation: Estimation = {
+                id,
+                name,
+                timestamp: Date.now(),
+                type: activeModule,
+                inputs: { ...inputs },
+                yearlyValue,
+                totals: activeTotals,
+                monthlyData: activeModule === "gsc" ? results.gsc.monthlyData : results.ecom.monthlyData
+            };
+
+            setEstimations(prev => [newEstimation, ...prev]);
+        }
+    };
+
+    const deleteEstimation = (id: string) => {
+        setEstimations(prev => prev.filter(e => e.id !== id));
+        if (editingEstimationId === id) setEditingEstimationId(null);
+        if (expandedEstimationId === id) setExpandedEstimationId(null);
+    };
+
+    const loadEstimation = (est: Estimation) => {
+        setInputs(est.inputs);
+        setActiveModule(est.type);
+        setEditingEstimationId(est.id);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const exportEstimations = () => {
+        const blob = new Blob([JSON.stringify(estimations, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `quant_estimations_${new Date().toISOString().split("T")[0]}.json`;
+        a.click();
+    };
+
+    const importEstimations = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const imported = JSON.parse(event.target?.result as string);
+                setEstimations(prev => [...imported, ...prev]);
+            } catch (err) {
+                alert("Invalid JSON file");
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const updateEstimationName = (id: string, name: string) => {
+        setEstimations(prev => prev.map(e => e.id === id ? { ...e, name } : e));
+    };
+
+    const activeData = results ? (activeModule === "gsc" ? results.gsc : results.ecom) : null;
+    const activeMC = results ? (activeModule === "gsc" ? results.gscMC : results.ecomMC) : null;
+
+    const baseEstimation = editingEstimationId ? estimations.find(e => e.id === editingEstimationId) : null;
+
+    const getComparison = (current: number, base: number) => {
+        if (!base) return null;
+        const diff = ((current - base) / base) * 100;
+        if (Math.abs(diff) < 0.1) return { label: "SAME", color: "text-zinc-500", icon: <Minus className="w-2.5 h-2.5" /> };
+        if (diff > 0) return { label: `+${diff.toFixed(1)}%`, color: "text-emerald-400", icon: <ArrowUpRight className="w-2.5 h-2.5" /> };
+        return { label: `${diff.toFixed(1)}%`, color: "text-red-400", icon: <ArrowDownRight className="w-2.5 h-2.5" /> };
+    };
+
+    const chartData = useMemo(() => {
+        if (!activeData || !results) return [];
+        return activeData.monthlyData.map((d, i) => ({
+            month: d.month,
+            clicks: d.clicks,
+            value: activeModule === "gsc" ? (d as any).trafficValue : (d as any).revenue,
+            min: activeModule === "gsc" ? (results.gscMC.p10[i]?.trafficValue || 0) : (results.ecomMC.p10[i]?.revenue || 0),
+            max: activeModule === "gsc" ? (results.gscMC.p90[i]?.trafficValue || 0) : (results.ecomMC.p90[i]?.revenue || 0),
+        }));
+    }, [activeData, activeModule, results]);
+
     if (!mounted || !results) return <div className="min-h-screen bg-[#060608] flex items-center justify-center text-zinc-500 font-mono">Initializing Quant Studio...</div>;
-
-    const activeData = activeModule === "gsc" ? results.gsc : results.ecom;
-    const activeMC = activeModule === "gsc" ? results.gscMC : results.ecomMC;
-
-    const chartData = activeData.monthlyData.map((d, i) => ({
-        month: d.month,
-        clicks: d.clicks,
-        value: activeModule === "gsc" ? (d as any).trafficValue : (d as any).revenue,
-        min: activeModule === "gsc" ? (results.gscMC.p10[i]?.trafficValue || 0) : (results.ecomMC.p10[i]?.revenue || 0),
-        max: activeModule === "gsc" ? (results.gscMC.p90[i]?.trafficValue || 0) : (results.ecomMC.p90[i]?.revenue || 0),
-    }));
 
     return (
         <div className="min-h-screen bg-[#060608] text-zinc-100 pb-20 font-sans selection:bg-blue-500/30">
@@ -124,6 +263,24 @@ export default function Calculator() {
                         <ModuleTab active={activeModule === "gsc"} onClick={() => setActiveModule("gsc")} label="GSC Ad Value" icon={<Globe className="w-3.5 h-3.5" />} />
                         <ModuleTab active={activeModule === "ecom"} onClick={() => setActiveModule("ecom")} label="Ecommerce Revenue" icon={<ShoppingBag className="w-3.5 h-3.5" />} />
                     </div>
+                    <div className="flex items-center gap-4">
+                        {editingEstimationId && (
+                            <button onClick={() => setEditingEstimationId(null)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 text-[10px] font-black uppercase tracking-widest border border-white/5 transition-all">
+                                <Plus className="w-3.5 h-3.5" /> Start New
+                            </button>
+                        )}
+                        <button onClick={saveEstimation} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(59,130,246,0.3)] hover:scale-105 active:scale-95">
+                            <Save className="w-3.5 h-3.5" /> {editingEstimationId ? "Update Active" : "Save Estimation"}
+                        </button>
+                        <div className="h-6 w-px bg-white/10 mx-2" />
+                        <label className="cursor-pointer p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
+                            <Upload className="w-4 h-4 text-zinc-400" />
+                            <input type="file" className="hidden" accept=".json" onChange={importEstimations} />
+                        </label>
+                        <button onClick={exportEstimations} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
+                            <Download className="w-4 h-4 text-zinc-400" />
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -135,7 +292,20 @@ export default function Calculator() {
                         icon={<Search className="text-blue-400 w-3.5 h-3.5" />}
                         helpContent="The baseline of your organic potential. Inventory and Domain Authority drive indexation velocity and the volume of top-tier impressions."
                     >
-                        <InputGroup label="URL Inventory" name="totalPages" value={inputs.totalPages} onChange={handleInputChange} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <InputGroup
+                                label="URL Inventory"
+                                name="totalPages"
+                                value={inputs.totalPages}
+                                onChange={handleInputChange}
+                                extra={
+                                    <span className="text-[7px] px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-black uppercase">
+                                        Final: {formatNumber(Math.floor(inputs.totalPages * Math.pow(1 + ((inputs.inventoryGrowthRate || 0) / 100), inputs.monthsSinceLaunch)))}
+                                    </span>
+                                }
+                            />
+                            <InputGroup label="Mo. Growth (%)" name="inventoryGrowthRate" value={inputs.inventoryGrowthRate} onChange={handleInputChange} step="0.1" />
+                        </div>
                         <RangeGroup label="Domain Authority" name="domainAuthority" value={inputs.domainAuthority} onChange={handleInputChange} max={100} color="blue" />
                         <div className="grid grid-cols-2 gap-4">
                             <SelectGroup label="Comp. Level" name="competition" value={inputs.competition} onChange={handleInputChange} options={["low", "medium", "high"]} />
@@ -202,7 +372,25 @@ export default function Calculator() {
                         {activeModule === "gsc" ? (
                             <>
                                 <div className="md:col-span-2">
-                                    <MetricCard title="Est. Ad Value" value={formatCurrency(results.gsc.totals.yearlyTrafficValue)} icon={<DollarSign className="w-5 h-5" />} color="emerald">
+                                    <MetricCard
+                                        title="Est. Ad Value"
+                                        value={formatCurrency(results.gsc.totals.yearlyTrafficValue)}
+                                        subtitle={`${formatCurrency(results.gsc.totals.monthlyTrafficValue)}/mo • ${formatCurrency(results.gsc.totals.dailyTrafficValue)}/day`}
+                                        icon={<DollarSign className="w-5 h-5" />}
+                                        color="emerald"
+                                    >
+                                        {baseEstimation && baseEstimation.type === "gsc" && (
+                                            <div className="mt-2 flex items-center gap-1.5">
+                                                {(() => {
+                                                    const comp = getComparison(results.gsc.totals.yearlyTrafficValue, baseEstimation.yearlyValue);
+                                                    return comp && (
+                                                        <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-tighter", comp.color)}>
+                                                            {comp.icon} {comp.label} vs saved
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
                                         <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
                                                 <label className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Avg CPC</label>
@@ -251,16 +439,41 @@ export default function Calculator() {
                                     <MetricCard title="Avg Search Position" value={results.gsc.totals.avgPosition.toFixed(1)} icon={<Target className="w-5 h-5" />} color="amber" />
                                 </div>
                                 <div className="md:col-span-3">
-                                    <MetricCard title="Weighted CTR" value={(results.gsc.totals.averageCtr * 100).toFixed(2) + "%"} icon={<Activity className="w-5 h-5" />} color="purple" />
+                                    <MetricCard title="Weighted CTR" value={(results!.gsc.totals.averageCtr * 100).toFixed(2) + "%"} icon={<Activity className="w-5 h-5" />} color="purple" />
                                 </div>
                             </>
                         ) : (
                             <>
                                 <div className="md:col-span-3">
-                                    <MetricCard title="Total Revenue" value={formatCurrency(results.ecom.totals.yearlyRevenue)} icon={<DollarSign className="w-5 h-5" />} color="indigo" />
+                                    <MetricCard
+                                        title="Total Revenue"
+                                        value={formatCurrency(results.ecom.totals.yearlyRevenue)}
+                                        subtitle={`${formatCurrency(results.ecom.totals.monthlyRevenue)}/mo • ${formatCurrency(results.ecom.totals.dailyRevenue)}/day`}
+                                        icon={<DollarSign className="w-5 h-5" />}
+                                        color="indigo"
+                                    >
+                                        {baseEstimation && baseEstimation.type === "ecom" && (
+                                            <div className="mt-2 flex items-center gap-1.5">
+                                                {(() => {
+                                                    const comp = getComparison(results.ecom.totals.yearlyRevenue, baseEstimation.yearlyValue);
+                                                    return comp && (
+                                                        <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-tighter", comp.color)}>
+                                                            {comp.icon} {comp.label} vs saved
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </MetricCard>
                                 </div>
                                 <div className="md:col-span-3">
-                                    <MetricCard title="Yearly Profit" value={formatCurrency(results.ecom.totals.yearlyProfit)} icon={<Zap className="w-5 h-5" />} color="amber" />
+                                    <MetricCard
+                                        title="Yearly Profit"
+                                        value={formatCurrency(results.ecom.totals.yearlyProfit)}
+                                        subtitle={`${formatCurrency(results.ecom.totals.monthlyProfit)}/mo • ${formatCurrency(results.ecom.totals.dailyProfit)}/day`}
+                                        icon={<Zap className="w-5 h-5" />}
+                                        color="amber"
+                                    />
                                 </div>
                                 <div className="md:col-span-3">
                                     <MetricCard title="Orders Placed" value={formatNumber(results.ecom.totals.yearlyOrders)} icon={<ShoppingBag className="w-5 h-5" />} color="emerald" />
@@ -352,18 +565,272 @@ export default function Calculator() {
                             </div>
                         </motion.div>
                     </div>
-
-                    <footer className="pt-10 flex flex-col items-center gap-6 border-t border-white/5">
-                        <div className="flex gap-8">
-                            <Link href="/documentation" className="text-[10px] font-black text-zinc-600 hover:text-blue-400 uppercase tracking-[0.2em] transition-colors">Documentation</Link>
-                            <span className="text-zinc-800">/</span>
-                            <Link href="#" className="text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-[0.2em] transition-colors">API Access</Link>
-                            <span className="text-zinc-800">/</span>
-                            <Link href="#" className="text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-[0.2em] transition-colors">Methodology</Link>
-                        </div>
-                        <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest leading-none">© 2026 Quant Monetization Studio • Real-Time SEO Financials</p>
-                    </footer>
                 </div>
+
+                {/* Estimations Management Table */}
+                <section className="mt-20 lg:col-span-12 glass rounded-[2.5rem] p-10 border border-white/10 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <div className="flex justify-between items-center mb-10">
+                        <div>
+                            <h3 className="text-2xl font-black tracking-tight mb-1">Estimation Library</h3>
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em]">Saved scenarios & progressive models</p>
+                        </div>
+                        <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-black/40 border border-white/5">
+                            <Activity className="w-3 h-3 text-blue-400" />
+                            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{estimations.length} Scenarios Stored</span>
+                        </div>
+                    </div>
+
+                    <div className="overflow-hidden border border-white/5 rounded-3xl bg-black/20">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-white/5 border-b border-white/5">
+                                    <th className="px-8 py-5 text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Date</th>
+                                    <th className="px-8 py-5 text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Scenario Name</th>
+                                    <th className="px-8 py-5 text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Engine</th>
+                                    <th className="px-8 py-5 text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">Yearly Forecast</th>
+                                    <th className="px-8 py-5 text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.02]">
+                                {estimations.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-8 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-4 opacity-20">
+                                                <Layers className="w-12 h-12" />
+                                                <p className="text-xs font-black uppercase tracking-[0.3em]">No estimations saved yet</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    estimations.map((est) => (
+                                        <React.Fragment key={est.id}>
+                                            <tr className={cn("group transition-colors hover:bg-white/[0.02]", editingEstimationId === est.id && "bg-blue-500/[0.03] border-l-4 border-l-blue-500")}>
+                                                <td className="px-8 py-6 font-mono text-[10px] text-zinc-500">
+                                                    {new Date(est.timestamp).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="text"
+                                                            value={est.name}
+                                                            onChange={(e) => updateEstimationName(est.id, e.target.value)}
+                                                            className="bg-transparent border-none text-xs font-black text-white focus:outline-none focus:ring-0 w-48"
+                                                        />
+                                                        {editingEstimationId === est.id && (
+                                                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 text-[8px] font-black uppercase tracking-tighter">Active Mod</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex items-center gap-2">
+                                                        {est.type === "gsc" ? (
+                                                            <><Globe className="w-3 h-3 text-emerald-400" /><span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">GSC Ad Val</span></>
+                                                        ) : (
+                                                            <><ShoppingBag className="w-3 h-3 text-indigo-400" /><span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Ecom Rev</span></>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 font-black text-white text-xs">
+                                                    {formatCurrency(est.yearlyValue)}
+                                                </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => setExpandedEstimationId(expandedEstimationId === est.id ? null : est.id)}
+                                                            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+                                                            title="Monthly Breakdown"
+                                                        >
+                                                            {expandedEstimationId === est.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => loadEstimation(est)}
+                                                            className="p-2 rounded-lg bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 transition-all"
+                                                            title="Load to Calculator"
+                                                        >
+                                                            <RefreshCcw className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteEstimation(est.id)}
+                                                            className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 transition-all"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {expandedEstimationId === est.id && (
+                                                <tr className="bg-black/40 shadow-inner">
+                                                    <td colSpan={5} className="px-8 py-8">
+                                                        <div className="mb-12 glass rounded-3xl p-6 border border-white/5 bg-black/20">
+                                                            <h4 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                                                <TrendingUp className="w-3 h-3 text-blue-400" /> Scenario Growth Trajectory
+                                                            </h4>
+                                                            <div className="h-[200px] w-full">
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <AreaChart
+                                                                        data={est.monthlyData.map((m: any) => ({
+                                                                            month: m.month,
+                                                                            value: est.type === "gsc" ? m.trafficValue : m.revenue,
+                                                                            clicks: m.clicks
+                                                                        }))}
+                                                                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                                                    >
+                                                                        <defs>
+                                                                            <linearGradient id={`glow-${est.id}`} x1="0" y1="0" x2="0" y2="1">
+                                                                                <stop offset="5%" stopColor={est.type === "gsc" ? "#10b981" : "#6366f1"} stopOpacity={0.3} />
+                                                                                <stop offset="95%" stopColor="#000" stopOpacity={0} />
+                                                                            </linearGradient>
+                                                                        </defs>
+                                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.02)" />
+                                                                        <XAxis dataKey="month" hide />
+                                                                        <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => formatCurrency(v)} tick={{ fill: '#52525b', fontSize: 8, fontWeight: 800 }} />
+                                                                        <Tooltip content={<ChartTooltip module={est.type} />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                                                                        <Area
+                                                                            type="monotone"
+                                                                            dataKey="value"
+                                                                            stroke={est.type === "gsc" ? "#10b981" : "#6366f1"}
+                                                                            strokeWidth={3}
+                                                                            fill={`url(#glow-${est.id})`}
+                                                                            animationDuration={1000}
+                                                                        />
+                                                                    </AreaChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                                            <div className="md:col-span-1 border-r border-white/10 pr-6">
+                                                                <h4 className="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                                    <Activity className="w-3 h-3" /> Monthly Progressive Metrics
+                                                                </h4>
+                                                                <div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin">
+                                                                    <table className="w-full text-left">
+                                                                        <thead>
+                                                                            <tr className="border-b border-white/5 pb-2">
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Month</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Inventory</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Clicks</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Imps</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">CTR</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Pos</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2 text-right">Value</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {est.monthlyData.map((m: any) => (
+                                                                                <tr key={m.month} className="border-b border-white/[0.02] hover:bg-white/[0.01] transition-colors">
+                                                                                    <td className="text-[10px] font-mono text-zinc-500 py-2">{m.month}</td>
+                                                                                    <td className="text-[10px] font-bold text-purple-400/60 py-2">{formatNumber(m.totalPages || 0)}</td>
+                                                                                    <td className="text-[10px] font-black text-zinc-300 py-2">{formatNumber(m.clicks)}</td>
+                                                                                    <td className="text-[10px] font-bold text-zinc-500 py-2">{formatNumber(m.impressions)}</td>
+                                                                                    <td className="text-[9px] font-bold text-blue-400/60 py-2">{(m.ctr * 100).toFixed(2)}%</td>
+                                                                                    <td className="text-[9px] font-bold text-amber-500/60 py-2">{m.avgPosition.toFixed(1)}</td>
+                                                                                    <td className="text-[10px] font-black text-white text-right py-2">{formatCurrency(est.type === "gsc" ? m.trafficValue : m.revenue)}</td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="md:col-span-1">
+                                                                <h4 className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                                    <TrendingUp className="w-3 h-3" /> Daily Accumulative Projections
+                                                                </h4>
+                                                                <div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin">
+                                                                    <table className="w-full text-left">
+                                                                        <thead>
+                                                                            <tr className="border-b border-white/5 pb-2">
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Month</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Clicks/Day</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2">Imps/Day</th>
+                                                                                <th className="text-[8px] font-black text-zinc-600 uppercase py-2 text-right">Value/Day</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {est.monthlyData.map((m: any) => {
+                                                                                const daysInMonth = 30.42; // average
+                                                                                return (
+                                                                                    <tr key={`daily-${m.month}`} className="border-b border-white/[0.02] hover:bg-white/[0.01] transition-colors">
+                                                                                        <td className="text-[10px] font-mono text-zinc-500 py-2">{m.month}</td>
+                                                                                        <td className="text-[10px] font-black text-emerald-400/80 py-2">{formatNumber(Math.floor(m.clicks / daysInMonth))}</td>
+                                                                                        <td className="text-[10px] font-bold text-zinc-500 py-2">{formatNumber(Math.floor(m.impressions / daysInMonth))}</td>
+                                                                                        <td className="text-[10px] font-black text-white text-right py-2">{formatCurrency((est.type === "gsc" ? m.trafficValue : m.revenue) / daysInMonth)}</td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex flex-col h-full">
+                                                                <h4 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                                    <Settings className="w-3 h-3 text-purple-400" /> Scenario Configuration
+                                                                </h4>
+                                                                <div className="glass p-8 rounded-[2rem] border border-white/5 bg-black/20 flex-grow">
+                                                                    <div className="grid grid-cols-2 gap-x-12 gap-y-8">
+                                                                        <div>
+                                                                            <h5 className="text-[8px] font-black text-zinc-600 uppercase mb-4 tracking-widest leading-none">Market Dynamics</h5>
+                                                                            <div className="space-y-2">
+                                                                                <CalibItem label="Comp Level" val={est.inputs.competition} />
+                                                                                <CalibItem label="Brand Power" val={est.inputs.brandStrength} />
+                                                                                <CalibItem label="Mo. Growth" val={((est.inputs.inventoryGrowthRate || 0)).toFixed(1) + "%"} />
+                                                                                <CalibItem label="Content Depth" val={est.inputs.contentDepth} />
+                                                                            </div>
+                                                                        </div>
+                                                                        <div>
+                                                                            <h5 className="text-[8px] font-black text-zinc-600 uppercase mb-4 tracking-widest leading-none">Engine Variables</h5>
+                                                                            <div className="space-y-2">
+                                                                                {est.type === "gsc" ? (
+                                                                                    <>
+                                                                                        <CalibItem label="AVG CPC" val={formatCurrency(est.inputs.avgCpc)} />
+                                                                                        <CalibItem label="AVG CPM" val={formatCurrency(est.inputs.avgCpm)} />
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <CalibItem label="Unit Price" val={formatCurrency(est.inputs.avgProductPrice || 0)} />
+                                                                                        <CalibItem label="Net Margin" val={((est.inputs.netMargin || 0) * 100).toFixed(0) + "%"} />
+                                                                                    </>
+                                                                                )}
+                                                                                <CalibItem label="Initial URLs" val={formatNumber(est.inputs.totalPages)} />
+                                                                                <CalibItem label="Domain Auth" val={est.inputs.domainAuthority} />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="mt-12 pt-8 border-t border-white/5 flex items-center justify-between">
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Base Module</span>
+                                                                            <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{est.type === "gsc" ? "Search Console Ad Value" : "Ecommerce Revenue"}</span>
+                                                                        </div>
+                                                                        <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
+                                                                            {est.type === "gsc" ? <Globe className="w-5 h-5 text-emerald-400 opacity-50" /> : <ShoppingBag className="w-5 h-5 text-indigo-400 opacity-50" />}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <footer className="lg:col-span-12 pt-20 pb-10 flex flex-col items-center gap-6 border-t border-white/5 mt-20">
+                    <div className="flex gap-8">
+                        <Link href="/documentation" className="text-[10px] font-black text-zinc-600 hover:text-blue-400 uppercase tracking-[0.2em] transition-colors">Documentation</Link>
+                        <span className="text-zinc-800">/</span>
+                        <Link href="#" className="text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-[0.2em] transition-colors">API Access</Link>
+                        <span className="text-zinc-800">/</span>
+                        <Link href="#" className="text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-[0.2em] transition-colors">Methodology</Link>
+                    </div>
+                    <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest leading-none">© 2026 Quant Monetization Studio • Real-Time SEO Financials</p>
+                </footer>
             </main>
         </div>
     );
@@ -423,10 +890,13 @@ function ControlSection({ title, icon, helpContent, children }: any) {
     );
 }
 
-function InputGroup({ label, name, value, onChange, step = "1" }: any) {
+function InputGroup({ label, name, value, onChange, step = "1", extra }: any) {
     return (
         <div className="space-y-2">
-            <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">{label}</label>
+            <div className="flex items-center justify-between">
+                <label className="block text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">{label}</label>
+                {extra}
+            </div>
             <input type="number" name={name} value={value} onChange={onChange} step={step} className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white font-mono text-xs focus:border-blue-500/50 outline-none transition-all shadow-inner focus:shadow-[0_0_20px_rgba(59,130,246,0.1)]" />
         </div>
     );
