@@ -56,6 +56,7 @@ export default function Calculator() {
         domainAuthority: 30,
         competition: "medium",
         avgCpc: 2.50,
+        avgCpm: 12.00,
         monthsSinceLaunch: 24,
         brandStrength: "average",
         pageSpeedScore: 70,
@@ -164,7 +165,10 @@ export default function Calculator() {
                                     icon={<DollarSign className="text-emerald-400 w-3.5 h-3.5" />}
                                     helpContent="Calculates the in-pocket value of organic keywords by modeling the budget required to purchase this exact click volume via Google Search Ads."
                                 >
-                                    <InputGroup label="Avg CPC ($)" name="avgCpc" value={inputs.avgCpc} onChange={handleInputChange} step="0.1" />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputGroup label="Avg CPC ($)" name="avgCpc" value={inputs.avgCpc} onChange={handleInputChange} step="0.1" />
+                                        <InputGroup label="Avg CPM ($)" name="avgCpm" value={inputs.avgCpm} onChange={handleInputChange} step="0.5" />
+                                    </div>
                                     <div className="pt-4 space-y-3">
                                         <ToggleItem label="AI Suppression" name="applySerpSuppression" value={!!inputs.applySerpSuppression} onChange={handleInputChange} icon={<Activity className="w-3 h-3" />} />
                                         <ToggleItem label="Re-index Risk" name="applyReindexationRisk" value={!!inputs.applyReindexationRisk} onChange={handleInputChange} icon={<RefreshCcw className="w-3 h-3" />} />
@@ -198,7 +202,32 @@ export default function Calculator() {
                         {activeModule === "gsc" ? (
                             <>
                                 <div className="md:col-span-2">
-                                    <MetricCard title="Est. Ad Value" value={formatCurrency(results.gsc.totals.yearlyTrafficValue)} icon={<DollarSign className="w-5 h-5" />} color="emerald" />
+                                    <MetricCard title="Est. Ad Value" value={formatCurrency(results.gsc.totals.yearlyTrafficValue)} icon={<DollarSign className="w-5 h-5" />} color="emerald">
+                                        <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Avg CPC</label>
+                                                <input
+                                                    type="number"
+                                                    name="avgCpc"
+                                                    value={inputs.avgCpc}
+                                                    onChange={handleInputChange}
+                                                    step="0.1"
+                                                    className="w-full bg-white/5 border border-white/5 rounded-lg px-2 py-1.5 text-white font-mono text-[9px] focus:border-emerald-500/50 outline-none transition-colors"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Avg CPM</label>
+                                                <input
+                                                    type="number"
+                                                    name="avgCpm"
+                                                    value={inputs.avgCpm}
+                                                    onChange={handleInputChange}
+                                                    step="0.5"
+                                                    className="w-full bg-white/5 border border-white/5 rounded-lg px-2 py-1.5 text-white font-mono text-[9px] focus:border-emerald-500/50 outline-none transition-colors"
+                                                />
+                                            </div>
+                                        </div>
+                                    </MetricCard>
                                 </div>
                                 <div className="md:col-span-2">
                                     <MetricCard
@@ -298,11 +327,11 @@ export default function Calculator() {
                                         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Effective RPV</span>
                                         <div className="text-right">
                                             <span className="text-2xl font-black text-emerald-400">{(results.gsc.totals.yearlyTrafficValue / results.gsc.totals.yearlyClicks).toFixed(2)}</span>
-                                            <div className="text-[8px] font-bold text-zinc-600 uppercase">Per Paid Click Eq.</div>
+                                            <div className="text-[8px] font-bold text-zinc-600 uppercase">Blended RPV (CPC+CPM Eq.)</div>
                                         </div>
                                     </div>
                                     <p className="text-[9px] text-zinc-500 font-bold leading-relaxed uppercase tracking-wider opacity-60">
-                                        Proprietary SEO-to-CPC valuation based on {inputs.competition} keyword volatility.
+                                        Combined monetization model factoring both click-based and visit-based yields.
                                     </p>
                                 </div>
                             )}
@@ -448,7 +477,7 @@ function ToggleItem({ label, name, value, onChange, icon }: any) {
     );
 }
 
-function MetricCard({ title, value, subtitle, icon, color, small }: any) {
+function MetricCard({ title, value, subtitle, icon, color, small, children }: any) {
     const colorMap: any = {
         blue: "text-blue-400 border-blue-500/20 bg-blue-500/[0.02]",
         emerald: "text-emerald-400 border-emerald-500/20 bg-emerald-500/[0.02]",
@@ -477,6 +506,7 @@ function MetricCard({ title, value, subtitle, icon, color, small }: any) {
             </div>
             <p className={cn("font-black text-zinc-500 uppercase tracking-[0.25em] group-hover:text-zinc-400 transition-colors", small ? "text-[8px] mb-1" : "text-[10px] mb-2")}>{title}</p>
             <h3 className={cn("font-black tracking-tighter text-white group-hover:scale-[1.02] transition-transform origin-left", small ? "text-lg" : "text-2xl")}>{value}</h3>
+            {children}
             {subtitle && <p className="text-[9px] font-bold text-zinc-500 mt-2 lowercase tracking-tighter">{subtitle}</p>}
             {!small && <div className="absolute -bottom-4 -right-4 w-20 h-20 bg-current opacity-[0.03] blur-2xl rounded-full" />}
         </motion.div>

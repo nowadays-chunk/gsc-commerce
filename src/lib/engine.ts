@@ -13,6 +13,7 @@ export interface CalculatorInputs {
   domainAuthority: number;
   competition: CompetitionLevel;
   avgCpc: number;
+  avgCpm: number;
   monthsSinceLaunch: number;
 
   // Joint Impact Parameters
@@ -159,7 +160,7 @@ export function simulateTraffic(inputs: CalculatorInputs): TrafficData[] {
 export function simulateGSCAdValue(inputs: CalculatorInputs) {
   const traffic = simulateTraffic(inputs);
   const data: GSCAdValueData[] = traffic.map(t => ({
-    ...t, trafficValue: t.clicks * inputs.avgCpc
+    ...t, trafficValue: (t.clicks * inputs.avgCpc) + ((t.clicks / 1000) * inputs.avgCpm)
   }));
   if (data.length === 0) {
     return {

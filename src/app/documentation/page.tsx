@@ -71,7 +71,7 @@ export default function DocumentationPage() {
                             <code className="text-[10px] font-mono leading-relaxed text-blue-300 block bg-zinc-950 p-4 rounded-xl border border-white/5">
                                 growthFactor = (1 - exp(-(0.12 + DA * 0.006) * m)) <br /><br />
                                 impressions = indexedPages * baseImpsPerPage * growthFactor <br /><br />
-                                clicks = impressions * CTR_CURVE[pos] * serpModifier
+                                value = (clicks * avgCpc) + ((clicks / 1000) * avgCpm)
                             </code>
                         </div>
                     </div>
@@ -90,9 +90,9 @@ export default function DocumentationPage() {
                             This engine calculates the <strong>In-Pocket Value</strong> of your organic traffic. It answers the question: "How much would it cost to buy this level of traffic from Google Ads?"
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <FeatureCard icon={<Zap className="text-emerald-400" />} title="CPC Parity" desc="Automatically weights traffic value based on your custom CPC input and industry benchmarks." />
+                            <FeatureCard icon={<Zap className="text-emerald-400" />} title="Blended Yield" desc="Calculates value using both CPC (per click) and CPM (per 1,000 visits), allowing for hybrid monetization models." />
                             <FeatureCard icon={<Target className="text-amber-400" />} title="AI Suppression" desc="Simulates the 20% traffic loss typically observed from SGE and AI Overviews." />
-                            <FeatureCard icon={<Activity className="text-blue-400" />} title="Market Volatility" desc="Account for fluctuation in keyword cost-per-click across different seasonal cycles." />
+                            <FeatureCard icon={<TrendingUp className="text-blue-400" />} title="Visit Calibration" desc="Fine-tune revenue forecasts by adjusting Average CPM based on visitor quality and ad-density." />
                         </div>
                     </div>
                 </section>
@@ -152,6 +152,31 @@ export default function DocumentationPage() {
                                 <p className="text-zinc-500 text-xs leading-relaxed">
                                     Influences the Baseline Impression score (+15% for scores {'>'}90) and reduces checkout drop-off rates on mobile devices.
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* API Access */}
+                <section className="space-y-12">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/5 rounded-2xl border border-white/10">
+                            <Activity className="text-zinc-400 w-6 h-6" />
+                        </div>
+                        <h3 className="text-2xl font-black uppercase tracking-tight">Enterprise JSON API</h3>
+                    </div>
+                    <div className="space-y-8">
+                        <p className="text-zinc-400 leading-relaxed">
+                            Integrate the Quant engine directly into your custom dashboards or BI tools via our stateless JSON endpoints.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="glass p-8 rounded-3xl border border-white/5 bg-zinc-950/50">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest mb-4 text-emerald-400">GSC Simulation</h4>
+                                <code className="text-[9px] font-mono text-zinc-500 break-all">POST /api/simulate/gsc</code>
+                            </div>
+                            <div className="glass p-8 rounded-3xl border border-white/5 bg-zinc-950/50">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest mb-4 text-indigo-400">Ecom Simulation</h4>
+                                <code className="text-[9px] font-mono text-zinc-500 break-all">POST /api/simulate/ecom</code>
                             </div>
                         </div>
                     </div>
